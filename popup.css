@@ -38,6 +38,9 @@ body {
 .configurationDiv {
 	width: 100%;
 }
+.apiDomainSetting {
+	margin-top: 12px;
+}
 #apiDomain {
 	width: 100%;
 	margin-top: 10px;
