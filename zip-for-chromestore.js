@@ -12,6 +12,7 @@ const files = [
 	'logo64.png',
 	'manifest.json',
 	'event-name-formatter.js',
+	'event-click-handler.js',
 	'popup.css',
 	'popup.html',
 	'popup.js'

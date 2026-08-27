@@ -100,6 +100,10 @@ connection.onMessage.addListener((msg) => {
 		for (var i=0;i<msg.events.length;i++) {
 			const number = i;
 			document.getElementById('eventInfo_' + number).onclick = function() {
+				if (!shouldToggleEventDetails(window.getSelection().toString())) {
+					return;
+				}
+
 				if (document.getElementById('eventContent_' + number).style.display == 'block') {
 					document.getElementById('eventContent_' + number).style.display = 'none';
 				}
