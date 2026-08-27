@@ -2,6 +2,9 @@
   "name": "segment-chromeextension",
   "version": "3.2.0",
   "main": "index.js",
+  "scripts": {
+    "test": "node --test"
+  },
   "repository": "https://github.com/MartinMouritzen/segment-chromeextension.git",
   "author": "Martin Mouritzen <martin@martinmouritzen.dk>",
   "license": "MIT",

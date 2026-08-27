@@ -1,6 +1,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="popup.css">
+<script src="event-name-formatter.js"></script>
 <script src="popup.js"></script>
 </head>
 <body style="width: 700px">
@@ -17,6 +18,11 @@
 		</div>
 	</div>
 	<div id="configurationDiv" class="configurationDiv" hidden="hidden">
+		<label>
+			<input type="checkbox" id="snakeCaseEventNames">
+			Display event names in snake_case
+		</label>
+		<br />
 		API domains - comma separated list of domains used for Segment and Dreamdata events publishing
 		<textarea id="apiDomain" value="api.segment.io,cdn.dreamdata.cloud,track.attributionapp.com" placeholder="api.segment.io,cdn.dreamdata.cloud" rows="3">
 	</div>
