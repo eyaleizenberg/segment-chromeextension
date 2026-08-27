@@ -28,5 +28,14 @@
 		return 'Unknown tab';
 	}
 
-	return { selectEvents, formatEventSource };
+	function attachTabSource(event, tab) {
+		return {
+			...event,
+			tabId: tab?.id,
+			tabTitle: tab?.title || '',
+			hostName: tab?.url || event.hostName || ''
+		};
+	}
+
+	return { selectEvents, formatEventSource, attachTabSource };
 }));

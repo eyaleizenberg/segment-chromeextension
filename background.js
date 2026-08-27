@@ -41,14 +41,8 @@ function addEvent(event) {
 	chrome.runtime.sendMessage({ type: "new_event" });
 }
 
-function updateTrackedEventsForTab(tabId,connection) {
-	var sendEvents = [];
-
-	for(var i=0;i<trackedEvents.length;i++) {
-		if (trackedEvents[i].tabId == tabId) {
-			sendEvents.push(trackedEvents[i]);
-		}
-	}
+function updateTrackedEventsForTab(tabId,showAllTabs,connection) {
+	var sendEvents = selectEvents(trackedEvents, tabId, showAllTabs);
 
 	connection.postMessage({
 		type: 'update',
@@ -70,11 +64,11 @@ chrome.runtime.onConnect.addListener((connection) => {
 	var connectionHandler = (msg) => {
 		var tabId = msg.tabId;
 		if (msg.type == 'update') {
-			updateTrackedEventsForTab(tabId, connection);
+			updateTrackedEventsForTab(tabId, Boolean(msg.showAllTabs), connection);
 		}
 		else if (msg.type == 'clear') {
 			clearTrackedEventsForTab(tabId, connection);
-			updateTrackedEventsForTab(tabId, connection);
+			updateTrackedEventsForTab(tabId, Boolean(msg.showAllTabs), connection);
 		}
 	};
 	connection.onMessage.addListener(connectionHandler);
@@ -85,18 +79,33 @@ function isSegmentApiCall(url) {
 	return apiDomainParts.findIndex(d => url.startsWith(`https://${d.trim()}`)) != -1;
 }
 
-function onOwnServerResponse(url, callback) {
-	withOpenTab((tab) => {
-		try {
-			if ((new URL(tab.url)).host === (new URL(url)).host) {
-				callback();
-			}
+function withRequestTab(details, callback) {
+	if (details.tabId < 0) {
+		callback(undefined);
+		return;
+	}
+
+	chrome.tabs.get(details.tabId, (tab) => {
+		if (chrome.runtime.lastError) {
+			callback(undefined);
+			return;
 		}
-		catch(exception) {
-			console.log('Could not create URL.');
-			console.log(exception);
+		callback(tab);
+	});
+}
+
+function onOwnServerResponse(url, tab, callback) {
+	if (!tab) return;
+
+	try {
+		if ((new URL(tab.url)).host === (new URL(url)).host) {
+			callback();
 		}
-	})
+	}
+	catch(exception) {
+		console.log('Could not create URL.');
+		console.log(exception);
+	}
 }
 
 function eventTypeToName(eventType) {
@@ -121,47 +130,45 @@ const onBeforeRequestHandler = (details) => {
 		var event = {
 			raw: postedString,
 			trackedTime: formatDateToTime(new Date()),
+			hostName: details.url,
 		};
 
-		withOpenTab((tab) => {
-			event.hostName = tab.url;
-			event.tabId = tab.id;
+		if (
+			details.url.endsWith('/v1/t') ||
+			details.url.endsWith('/v2/t') ||
+			details.url.endsWith('/v1/track')
+		) {
+			event.type = 'track';
+		}
+		else if (
+			details.url.endsWith('/v1/i') ||
+			details.url.endsWith('/v2/i') ||
+			details.url.endsWith('/v1/identify')
+		) {
+			event.type = 'identify';
+		}
+		else if (
+			details.url.endsWith('/v1/p') ||
+			details.url.endsWith('/v2/p') ||
+			details.url.endsWith('/v1/page')
+		) {
+			event.type = 'pageLoad';
+		}
+		else if (
+			details.url.endsWith('/v1/batch') ||
+			details.url.endsWith('/v2/batch') ||
+			details.url.endsWith('/v1/b') ||
+			details.url.endsWith('/v2/b')
+		) {
+			event.type = 'batch';
+		}
 
-			if (
-				details.url.endsWith('/v1/t') ||
-				details.url.endsWith('/v2/t') ||
-				details.url.endsWith('/v1/track')
-			) {
-				event.type = 'track';
-			}
-			else if (
-				details.url.endsWith('/v1/i') ||
-				details.url.endsWith('/v2/i') ||
-				details.url.endsWith('/v1/identify')
-			) {
-				event.type = 'identify';
-			}
-			else if (
-				details.url.endsWith('/v1/p') ||
-				details.url.endsWith('/v2/p') ||
-				details.url.endsWith('/v1/page')
-			) {
-				event.type = 'pageLoad';
-			}
-			else if (
-				details.url.endsWith('/v1/batch') ||
-				details.url.endsWith('/v2/batch') ||
-				details.url.endsWith('/v1/b') ||
-				details.url.endsWith('/v2/b')
-			) {
-				event.type = 'batch';
-			}
-
-			if (event.type) {
-				event.eventName = eventTypeToName(event.type) || rawEvent.event
-				addEvent(event);
-			}
-		});
+		if (event.type) {
+			event.eventName = eventTypeToName(event.type) || rawEvent.event
+			withRequestTab(details, (tab) => {
+				addEvent(attachTabSource(event, tab));
+			});
+		}
 	}
 };
 
@@ -177,25 +184,22 @@ chrome.webRequest.onBeforeRequest.addListener(
 
 
 const onHeadersReceivedHandler = (details) => {
-	onOwnServerResponse(details.url, () => {
+	withRequestTab(details, (tab) => onOwnServerResponse(details.url, tab, () => {
 		const eventsHeader = details.responseHeaders.find(({ name }) => !!name && name.toLowerCase() === 'x-tracked-events');
 		if (!eventsHeader) return
 
-		withOpenTab((tab) => {
-			const serverTrackedEvents = JSON.parse(eventsHeader.value);
-			serverTrackedEvents.forEach((serverEvent) => {
-				const event = {
-					type: serverEvent.type,
-					eventName: serverEvent.event || eventTypeToName(serverEvent.type),
-					raw: JSON.stringify(serverEvent),
-					trackedTime: formatDateToTime(new Date(serverEvent.timestamp)),
-					hostName: details.url,
-					tabId: tab.id
-				};
-				addEvent(event);
-			})
-		});
-	})
+		const serverTrackedEvents = JSON.parse(eventsHeader.value);
+		serverTrackedEvents.forEach((serverEvent) => {
+			const event = {
+				type: serverEvent.type,
+				eventName: serverEvent.event || eventTypeToName(serverEvent.type),
+				raw: JSON.stringify(serverEvent),
+				trackedTime: formatDateToTime(new Date(serverEvent.timestamp)),
+				hostName: details.url
+			};
+			addEvent(attachTabSource(event, tab));
+		})
+	}));
 };
 
 chrome.webRequest.onHeadersReceived.addListener(
