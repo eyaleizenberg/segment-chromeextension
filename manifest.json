@@ -5,11 +5,15 @@
 	"description": "See when Segment, Rudderstack, Attribution and Dreamdata events are being tracked.",
 	"permissions": [
 		"storage",
-		"webRequest"
+		"webRequest",
+		"sidePanel"
 	],
 	"action": {
 		"default_icon": "logo.png",
-		"default_popup": "popup.html"
+		"default_title": "Segment Event Tracker"
+	},
+	"side_panel": {
+		"default_path": "sidepanel.html"
 	},
 	"icons": {
 		"16": "logo16.png",
