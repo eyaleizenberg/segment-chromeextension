@@ -6,6 +6,7 @@
 		var api = factory();
 		root.selectEvents = api.selectEvents;
 		root.formatEventSource = api.formatEventSource;
+		root.attachTabSource = api.attachTabSource;
 	}
 }(typeof globalThis !== 'undefined' ? globalThis : this, function() {
 	function selectEvents(events, tabId, showAllTabs) {

@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
 const { selectEvents, formatEventSource, attachTabSource } = require('../event-store');
 
 test('returns only the active tab events when all-tabs mode is disabled', () => {
@@ -31,4 +33,13 @@ test('keeps request event fields while adding the originating tab metadata', () 
     attachTabSource({ eventName: 'saved' }, { id: 7, title: 'Riverside dashboard', url: 'https://riverside.com/dashboard/home' }),
     { eventName: 'saved', tabId: 7, tabTitle: 'Riverside dashboard', hostName: 'https://riverside.com/dashboard/home' }
   );
+});
+
+test('exposes attachTabSource through the browser global path', () => {
+  const browserGlobal = {};
+  const source = fs.readFileSync(require.resolve('../event-store'), 'utf8');
+
+  vm.runInNewContext(source, { globalThis: browserGlobal });
+
+  assert.equal(typeof browserGlobal.attachTabSource, 'function');
 });
