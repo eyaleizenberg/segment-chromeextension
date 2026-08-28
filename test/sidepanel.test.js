@@ -19,7 +19,7 @@ function createElement() {
 	};
 }
 
-function loadSidePanel(storageValues = {}) {
+function loadSidePanel(storageValues = {}, options = {}) {
 	const elements = Object.fromEntries([
 		'clearButton', 'filterInput', 'configureButton', 'contentDiv', 'configurationDiv',
 		'snakeCaseEventNames', 'showAllTabs', 'apiDomain', 'trackMessages'
@@ -28,6 +28,7 @@ function loadSidePanel(storageValues = {}) {
 	const portMessages = [];
 	const storageSets = [];
 	const portListeners = [];
+	const pendingStorageGets = [];
 	const tabActivationListeners = [];
 	const runtimeListeners = [];
 	const chrome = {
@@ -49,7 +50,9 @@ function loadSidePanel(storageValues = {}) {
 					for (const key of keys) {
 						if (Object.hasOwn(storageValues, key)) result[key] = storageValues[key];
 					}
-					callback(result);
+					const resolve = () => callback(result);
+					if (options.deferStorage) pendingStorageGets.push({ keys, resolve });
+					else resolve();
 				},
 				set: (value, callback) => {
 					storageSets.push(value);
@@ -75,7 +78,7 @@ function loadSidePanel(storageValues = {}) {
 	};
 	vm.runInNewContext(fs.readFileSync(path.join(root, 'sidepanel.js'), 'utf8'), context);
 	domListeners.DOMContentLoaded();
-	return { elements, portMessages, portListeners, runtimeListeners, storageSets, tabActivationListeners };
+	return { elements, portMessages, portListeners, runtimeListeners, storageSets, tabActivationListeners, pendingStorageGets };
 }
 
 test('loads the side-panel document with shared utilities before its controller', () => {
@@ -119,4 +122,31 @@ test('uses the false default and refreshes when the active tab changes', () => {
 	assert.equal(panel.tabActivationListeners.length, 1);
 	panel.tabActivationListeners[0]();
 	assert.deepEqual({ ...panel.portMessages.at(-1) }, { type: 'update', tabId: 42, showAllTabs: false });
+});
+
+test('applies a persisted snake-case preference before the first event render', () => {
+	const panel = loadSidePanel({ display_event_names_in_snake_case: true }, { deferStorage: true });
+	const snakeCaseSetting = panel.pendingStorageGets.find(({ keys }) => keys[0] == 'display_event_names_in_snake_case');
+	const allTabsSetting = panel.pendingStorageGets.find(({ keys }) => keys[0] == 'show_all_tabs');
+
+	allTabsSetting.resolve();
+	assert.equal(panel.portMessages.length, 0);
+	snakeCaseSetting.resolve();
+	assert.deepEqual({ ...panel.portMessages.at(-1) }, { type: 'update', tabId: 42, showAllTabs: false });
+
+	panel.portListeners[0]({
+		type: 'update',
+		events: [{ type: 'track', eventName: 'Viewed Home', trackedTime: '10:00', hostName: 'example.com', raw: '{"value":1}' }]
+	});
+	assert.match(panel.elements.trackMessages.innerHTML, />viewed home</);
+});
+
+test('uses a flex viewport layout that keeps the clear control below the scrollable event list', () => {
+	const styles = fs.readFileSync(path.join(root, 'sidepanel.css'), 'utf8');
+	assert.match(styles, /body\s*\{[^}]*display:\s*flex;/s);
+	assert.match(styles, /body\s*\{[^}]*flex-direction:\s*column;/s);
+	assert.match(styles, /body\s*\{[^}]*height:\s*100vh;/s);
+	assert.match(styles, /#contentDiv\s*\{[^}]*flex:\s*1 1 auto;[^}]*flex-direction:\s*column;[^}]*min-height:\s*0;/s);
+	assert.match(styles, /#trackMessages\s*\{[^}]*flex:\s*1 1 auto;[^}]*min-height:\s*0;[^}]*overflow:\s*auto;/s);
+	assert.match(styles, /\.buttonDiv\s*\{[^}]*flex:\s*0 0 auto;/s);
 });
