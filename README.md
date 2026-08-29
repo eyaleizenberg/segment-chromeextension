@@ -23,7 +23,9 @@ Go to [Chrome Web Store](https://chrome.google.com/webstore/detail/segment-event
 - Go to Chrome menu -> More tools -> Extensions
 - Press "Load unpacked extension"
 - Choose the folder you just cloned
-- You can now hack away and test it live!
+- Chrome 114 or later is required for the native side panel.
+- Reload the unpacked extension from the repository root after making changes.
+- Click the extension action icon and use the native Chrome side panel to test it live.
 
 *Pull requests and issues are more than welcome.*
 

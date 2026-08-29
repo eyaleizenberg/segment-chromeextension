@@ -11,11 +11,12 @@ const files = [
 	'logo48.png',
 	'logo64.png',
 	'manifest.json',
+	'event-store.js',
 	'event-name-formatter.js',
 	'event-click-handler.js',
-	'popup.css',
-	'popup.html',
-	'popup.js'
+	'sidepanel.css',
+	'sidepanel.html',
+	'sidepanel.js'
 ];
 
 // Create a file to stream archive data to
