@@ -29,10 +29,6 @@ The extension observes outgoing Segment-compatible API calls and shows events se
 
 ![The Segment Event Tracker side panel showing a live event feed and an expanded event payload.](screenshots/side-panel-live-events.png)
 
-### Configure the tracker
-
-![The Segment Event Tracker settings screen with log controls, display options, dark mode, and API domain configuration.](screenshots/side-panel-settings.png)
-
 ## Install from the Chrome Web Store
 
 The Chrome Web Store listing is coming soon. This README will be updated with the installation link once the extension is published.
