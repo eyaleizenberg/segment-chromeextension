@@ -70,6 +70,10 @@ function clearTrackedEventsForTab(tabId,port) {
 	trackedEvents = newTrackedEvents;
 }
 
+function clearAllTrackedEvents() {
+	trackedEvents = [];
+}
+
 chrome.runtime.onConnect.addListener((connection) => {
 	var connectionHandler = (msg) => {
 		var tabId = msg.tabId;
@@ -78,6 +82,10 @@ chrome.runtime.onConnect.addListener((connection) => {
 		}
 		else if (msg.type == 'clear') {
 			clearTrackedEventsForTab(tabId, connection);
+			updateTrackedEventsForTab(tabId, Boolean(msg.showAllTabs), connection);
+		}
+		else if (msg.type == 'clear-all') {
+			clearAllTrackedEvents();
 			updateTrackedEventsForTab(tabId, Boolean(msg.showAllTabs), connection);
 		}
 	};

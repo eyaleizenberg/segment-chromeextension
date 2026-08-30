@@ -38,9 +38,16 @@ function createElement(tagName = 'div') {
 			return matches;
 		},
 		classList: {
-			add: (...names) => names.forEach((name) => classes.add(name)),
+			add: (...names) => names.forEach((name) => {
+				if (/\s/.test(name)) throw new Error('Invalid class token');
+				classes.add(name);
+			}),
 			remove: (...names) => names.forEach((name) => classes.delete(name)),
-			contains: (name) => classes.has(name)
+			contains: (name) => classes.has(name),
+			toggle: (name, enabled) => {
+				if (enabled) classes.add(name);
+				else classes.delete(name);
+			}
 		}
 	};
 	Object.defineProperty(element, 'textContent', {
@@ -56,7 +63,7 @@ function createElement(tagName = 'div') {
 function loadSidePanel(storageValues = {}, options = {}) {
 	const elements = Object.fromEntries([
 		'clearButton', 'filterInput', 'configureButton', 'contentDiv', 'configurationDiv',
-		'snakeCaseEventNames', 'showAllTabs', 'apiDomain', 'trackMessages'
+		'clearAllButton', 'snakeCaseEventNames', 'showAllTabs', 'darkMode', 'apiDomain', 'trackMessages'
 	].map((id) => [id, createElement()]));
 	const domListeners = {};
 	const portMessages = [];
@@ -112,7 +119,8 @@ function loadSidePanel(storageValues = {}, options = {}) {
 			addEventListener: (type, listener) => { domListeners[type] = listener; },
 			getElementById: (id) => elements[id] || (elements[id] = createElement()),
 			createElement,
-			createTextNode: (text) => ({ textContent: String(text) })
+			createTextNode: (text) => ({ textContent: String(text) }),
+			body: createElement('body')
 		},
 		window: { getSelection: () => ({ toString: () => '' }) },
 		navigator: { clipboard: { writeText() {} } },
@@ -125,13 +133,15 @@ function loadSidePanel(storageValues = {}, options = {}) {
 	};
 	vm.runInNewContext(fs.readFileSync(path.join(root, 'sidepanel.js'), 'utf8'), context);
 	domListeners.DOMContentLoaded();
-	return { elements, portMessages, portListeners, ports, runtimeListeners, storageSets, tabActivationListeners, pendingStorageGets };
+	return { elements, body: context.document.body, portMessages, portListeners, ports, runtimeListeners, storageSets, tabActivationListeners, pendingStorageGets };
 }
 
 test('loads the side-panel document with shared utilities before its controller', () => {
 	const document = fs.readFileSync(path.join(root, 'sidepanel.html'), 'utf8');
 	assert.match(document, /<button[^>]*id="configureButton"[^>]*aria-label="Toggle configuration"/);
 	assert.match(document, /<input[^>]*type="checkbox"[^>]*id="showAllTabs"/);
+	assert.match(document, /<input[^>]*type="checkbox"[^>]*id="darkMode"/);
+	assert.match(document, /<input[^>]*id="clearAllButton"[^>]*value="Clear log from all tabs"/);
 	assert.ok(document.indexOf('event-store.js') < document.indexOf('event-name-formatter.js'));
 	assert.ok(document.indexOf('event-name-formatter.js') < document.indexOf('event-click-handler.js'));
 	assert.ok(document.indexOf('event-click-handler.js') < document.indexOf('sidepanel.js'));
@@ -236,4 +246,39 @@ test('renders the existing empty state without posting query or clear messages w
 	assert.equal(panel.elements.trackMessages.textContent, 'No events tracked in this tab yet.');
 	panel.elements.clearButton.onclick();
 	assert.equal(panel.portMessages.length, 0);
+});
+
+test('does not use an untrusted event type as a CSS class token', () => {
+	const panel = loadSidePanel();
+
+	assert.doesNotThrow(() => panel.portListeners[0]({
+		type: 'update',
+		events: [{ type: 'track invalid', eventName: 'Viewed Home', trackedTime: '10:00', hostName: 'example.com', raw: '{}' }]
+	}));
+	const eventCard = panel.elements.trackMessages.getElementsByClassName('eventTracked')[0];
+	assert.equal(eventCard.classList.contains('eventType_track'), false);
+});
+
+test('sends an explicit clear-all request without changing active-tab clear behavior', () => {
+	const panel = loadSidePanel();
+
+	panel.elements.clearButton.onclick();
+	assert.deepEqual({ ...panel.portMessages.at(-1) }, { type: 'clear', tabId: 42, showAllTabs: false });
+	panel.elements.clearAllButton.onclick();
+	assert.deepEqual({ ...panel.portMessages.at(-1) }, { type: 'clear-all', showAllTabs: false });
+});
+
+test('initializes and persists panel-only dark-mode preference', () => {
+	const defaultPanel = loadSidePanel();
+	assert.equal(defaultPanel.elements.darkMode.checked, false);
+	assert.equal(defaultPanel.body.classList.contains('darkMode'), false);
+
+	const panel = loadSidePanel({ dark_mode: true });
+
+	assert.equal(panel.elements.darkMode.checked, true);
+	assert.equal(panel.body.classList.contains('darkMode'), true);
+	panel.elements.darkMode.checked = false;
+	panel.elements.darkMode.onchange();
+	assert.deepEqual({ ...panel.storageSets.at(-1) }, { dark_mode: false });
+	assert.equal(panel.body.classList.contains('darkMode'), false);
 });

@@ -9,11 +9,13 @@ const backgroundSource = fs.readFileSync(path.join(__dirname, '..', 'background.
 function loadBackground({ sendMessage, console = { log() {} }, getTab = () => {} } = {}) {
 	const onBeforeRequestListeners = [];
 	const onHeadersReceivedListeners = [];
+	const onConnectListeners = [];
 	const sandbox = {
 		URL,
 		TextDecoder,
 		console,
 		attachTabSource: (event) => event,
+		selectEvents: (events, tabId, showAllTabs) => showAllTabs ? events : events.filter((event) => event.tabId === tabId),
 		chrome: {
 			storage: {
 				local: { get: (_keys, callback) => callback({}) },
@@ -26,7 +28,7 @@ function loadBackground({ sendMessage, console = { log() {} }, getTab = () => {}
 			runtime: {
 				sendMessage,
 				lastError: undefined,
-				onConnect: { addListener() {} }
+				onConnect: { addListener: (listener) => onConnectListeners.push(listener) }
 			},
 			webRequest: {
 				onBeforeRequest: { addListener: (listener) => onBeforeRequestListeners.push(listener) },
@@ -38,6 +40,7 @@ function loadBackground({ sendMessage, console = { log() {} }, getTab = () => {}
 	vm.runInNewContext(backgroundSource, sandbox, { filename: 'background.js' });
 	sandbox.onBeforeRequest = onBeforeRequestListeners[0];
 	sandbox.onHeadersReceived = onHeadersReceivedListeners[0];
+	sandbox.onConnect = onConnectListeners[0];
 	return sandbox;
 }
 
@@ -117,4 +120,24 @@ test('keeps server-header events newest-first when originating-tab lookups resol
 		Array.from(background.trackedEvents, (event) => event.eventName),
 		['second', 'first']
 	);
+});
+
+test('clears all tracked events only for the explicit clear-all port request', () => {
+	const background = loadBackground({ sendMessage: () => ({ catch() {} }) });
+	const portMessages = [];
+	let portMessageListener;
+	background.onConnect({
+		postMessage: (message) => portMessages.push(message),
+		onMessage: { addListener: (listener) => { portMessageListener = listener; } }
+	});
+	background.addEvent({ eventName: 'first', tabId: 1 });
+	background.addEvent({ eventName: 'second', tabId: 2 });
+
+	portMessageListener({ type: 'clear', tabId: 1, showAllTabs: true });
+	assert.deepEqual(Array.from(background.trackedEvents, (event) => event.eventName), ['second']);
+	portMessageListener({ type: 'clear-all', showAllTabs: true });
+
+	assert.deepEqual(Array.from(background.trackedEvents), []);
+	assert.equal(portMessages.at(-1).type, 'update');
+	assert.deepEqual(Array.from(portMessages.at(-1).events), []);
 });
