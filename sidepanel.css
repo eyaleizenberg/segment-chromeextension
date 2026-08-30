@@ -183,6 +183,10 @@ h1 {
 .copyEvent {
 	float: right;
 }
+.copyEvent svg {
+	width: 16px;
+	height: 16px;
+}
 
 .string { color: green; }
 .number { color: blue; }
