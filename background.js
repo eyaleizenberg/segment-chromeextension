@@ -38,7 +38,12 @@ function withOpenTab(callback) {
 
 function addEvent(event) {
 	trackedEvents.unshift(event);
-	chrome.runtime.sendMessage({ type: "new_event" });
+	chrome.runtime.sendMessage({ type: "new_event" }).catch((error) => {
+		if (error && error.message === 'Could not establish connection. Receiving end does not exist.') {
+			return;
+		}
+		throw error;
+	});
 }
 
 function updateTrackedEventsForTab(tabId,showAllTabs,connection) {
@@ -95,16 +100,18 @@ function withRequestTab(details, callback) {
 }
 
 function onOwnServerResponse(url, tab, callback) {
-	if (!tab) return;
+	if (!tab || !tab.url) return;
 
+	var tabUrl;
 	try {
-		if ((new URL(tab.url)).host === (new URL(url)).host) {
-			callback();
-		}
+		tabUrl = new URL(tab.url);
 	}
 	catch(exception) {
-		console.log('Could not create URL.');
-		console.log(exception);
+		return;
+	}
+
+	if (tabUrl.host === (new URL(url)).host) {
+		callback();
 	}
 }
 
