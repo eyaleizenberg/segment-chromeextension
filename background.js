@@ -1,4 +1,5 @@
 var trackedEvents = new Array();
+var captureSequence = 0;
 var apiDomainDefault = 'api.segment.io,cdn.dreamdata.cloud,track.attributionapp.com,eu1.segmentapis.com,eu2.segmentapis.com,in.eu1.segmentapis.com,in.eu2.segmentapis.com,events.eu1.segmentapis.com,events.eu2.segmentapis.com';
 var apiDomain = apiDomainDefault;
 
@@ -37,7 +38,11 @@ function withOpenTab(callback) {
 }
 
 function addEvent(event) {
-	trackedEvents.unshift(event);
+	if (typeof event.captureSequence !== 'number') {
+		event.captureSequence = ++captureSequence;
+	}
+	trackedEvents.push(event);
+	trackedEvents.sort((first, second) => second.captureSequence - first.captureSequence);
 	chrome.runtime.sendMessage({ type: "new_event" }).catch((error) => {
 		if (error && error.message === 'Could not establish connection. Receiving end does not exist.') {
 			return;
@@ -172,6 +177,7 @@ const onBeforeRequestHandler = (details) => {
 
 		if (event.type) {
 			event.eventName = eventTypeToName(event.type) || rawEvent.event
+			event.captureSequence = ++captureSequence;
 			withRequestTab(details, (tab) => {
 				addEvent(attachTabSource(event, tab));
 			});
@@ -191,6 +197,7 @@ chrome.webRequest.onBeforeRequest.addListener(
 
 
 const onHeadersReceivedHandler = (details) => {
+	var responseCaptureSequence = ++captureSequence;
 	withRequestTab(details, (tab) => onOwnServerResponse(details.url, tab, () => {
 		const eventsHeader = details.responseHeaders.find(({ name }) => !!name && name.toLowerCase() === 'x-tracked-events');
 		if (!eventsHeader) return
@@ -202,7 +209,8 @@ const onHeadersReceivedHandler = (details) => {
 				eventName: serverEvent.event || eventTypeToName(serverEvent.type),
 				raw: JSON.stringify(serverEvent),
 				trackedTime: formatDateToTime(new Date(serverEvent.timestamp)),
-				hostName: details.url
+				hostName: details.url,
+				captureSequence: responseCaptureSequence
 			};
 			addEvent(attachTabSource(event, tab));
 		})

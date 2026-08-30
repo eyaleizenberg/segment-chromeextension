@@ -6,34 +6,119 @@ let showAllTabsPreferenceLoaded = false;
 // Obtained from: https://uxwing.com/copy-icon/
 const copyJsonSVG = '<svg width="32" height="32" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 115.77 122.88" style="enable-background:new 0 0 115.77 122.88" xml:space="preserve"><style type="text/css">.st0{fill-rule:evenodd;clip-rule:evenodd;}</style><g><path class="st0" d="M89.62,13.96v7.73h12.19h0.01v0.02c3.85,0.01,7.34,1.57,9.86,4.1c2.5,2.51,4.06,5.98,4.07,9.82h0.02v0.02 v73.27v0.01h-0.02c-0.01,3.84-1.57,7.33-4.1,9.86c-2.51,2.5-5.98,4.06-9.82,4.07v0.02h-0.02h-61.7H40.1v-0.02 c-3.84-0.01-7.34-1.57-9.86-4.1c-2.5-2.51-4.06-5.98-4.07-9.82h-0.02v-0.02V92.51H13.96h-0.01v-0.02c-3.84-0.01-7.34-1.57-9.86-4.1 c-2.5-2.51-4.06-5.98-4.07-9.82H0v-0.02V13.96v-0.01h0.02c0.01-3.85,1.58-7.34,4.1-9.86c2.51-2.5,5.98-4.06,9.82-4.07V0h0.02h61.7 h0.01v0.02c3.85,0.01,7.34,1.57,9.86,4.1c2.5,2.51,4.06,5.98,4.07,9.82h0.02V13.96L89.62,13.96z M79.04,21.69v-7.73v-0.02h0.02 c0-0.91-0.39-1.75-1.01-2.37c-0.61-0.61-1.46-1-2.37-1v0.02h-0.01h-61.7h-0.02v-0.02c-0.91,0-1.75,0.39-2.37,1.01 c-0.61,0.61-1,1.46-1,2.37h0.02v0.01v64.59v0.02h-0.02c0,0.91,0.39,1.75,1.01,2.37c0.61,0.61,1.46,1,2.37,1v-0.02h0.01h12.19V35.65 v-0.01h0.02c0.01-3.85,1.58-7.34,4.1-9.86c2.51-2.5,5.98-4.06,9.82-4.07v-0.02h0.02H79.04L79.04,21.69z M105.18,108.92V35.65v-0.02 h0.02c0-0.91-0.39-1.75-1.01-2.37c-0.61-0.61-1-2.37-1v0.02h-0.01h-61.7h-0.02v-0.02c-0.91,0-1.75,0.39-2.37,1.01 c-0.61,0.61-1,1.46-1,2.37h0.02v0.01v73.27v0.02h-0.02c0,0.91,0.39,1.75,1.01,2.37c0.61,0.61,1.46,1,2.37,1v-0.02h0.01h61.7h0.02 v0.02c0.91,0,1.75-0.39,2.37-1.01c0.61-0.61,1-2.37h-0.02V108.92L105.18,108.92z" stroke="gray" fill="white" fill-opacity="0.5"/></g></svg>';
 
-let connection = chrome.runtime.connect();
+let connection;
+
+function connectToBackground() {
+	connection = chrome.runtime.connect();
+	connection.onMessage.addListener(handlePortMessage);
+	connection.onDisconnect.addListener(() => {
+		connectToBackground();
+		queryForUpdate();
+	});
+}
+
+connectToBackground();
 
 function displayEventName(eventName) {
 	return displayEventNamesInSnakeCase ? toSnakeCase(eventName) : eventName;
 }
 
-function printVariable(jsonObject, level) {
-	var returnString = '';
+function appendVariable(container, jsonObject, level) {
 	for (var key in jsonObject) {
 		if (jsonObject.hasOwnProperty(key)) {
-			returnString += '<div style="padding-left: ' + (level * 10) + 'px;">';
-			returnString += '<span class="key">' + key + '</span>';
-			if (typeof jsonObject[key] == 'object') {
-				returnString += ' {' + printVariable(jsonObject[key], level + 1) + '}';
+			var row = document.createElement('div');
+			row.style.paddingLeft = (level * 10) + 'px';
+			var keyElement = document.createElement('span');
+			keyElement.classList.add('key');
+			keyElement.textContent = key;
+			row.append(keyElement);
+
+			if (jsonObject[key] !== null && typeof jsonObject[key] == 'object') {
+				row.append(document.createTextNode(' {'));
+				appendVariable(row, jsonObject[key], level + 1);
+				row.append(document.createTextNode('}'));
 			}
 			else {
-				var type = isNaN(jsonObject[key]) ? 'string' : 'number';
-				returnString += ': <span class="' + type + '">' + jsonObject[key] + '</span>';
+				var valueElement = document.createElement('span');
+				var type = jsonObject[key] === null ? 'null' : typeof jsonObject[key];
+				valueElement.classList.add(type);
+				valueElement.textContent = ': ' + String(jsonObject[key]);
+				row.append(valueElement);
 			}
-			returnString += '</div>';
+			container.append(row);
 		}
 	}
-	return returnString;
+}
+
+function renderEmptyState() {
+	var trackMessages = document.getElementById('trackMessages');
+	trackMessages.replaceChildren();
+	var emptyState = document.createElement('span');
+	emptyState.textContent = 'No events tracked in this tab yet.';
+	trackMessages.append(emptyState);
+}
+
+function renderEvents(events) {
+	var trackMessages = document.getElementById('trackMessages');
+	trackMessages.replaceChildren();
+	if (events.length == 0) {
+		renderEmptyState();
+		return;
+	}
+
+	for (var i = 0; i < events.length; i++) {
+		const event = events[i];
+		var eventTracked = document.createElement('div');
+		eventTracked.classList.add('eventTracked', 'eventType_' + event.type);
+		var eventInfo = document.createElement('div');
+		eventInfo.classList.add('eventInfo');
+		var eventName = document.createElement('span');
+		eventName.classList.add('eventName');
+		var copyEvent = document.createElement('div');
+		copyEvent.classList.add('copyEvent');
+		var copyLink = document.createElement('a');
+		copyLink.title = 'Copy json to clipboard';
+		copyLink.innerHTML = copyJsonSVG;
+		copyEvent.append(copyLink);
+		eventName.append(copyEvent, document.createTextNode(displayEventName(event.eventName)));
+		eventInfo.append(eventName, document.createTextNode(' - ' + event.trackedTime));
+		if (showAllTabs) {
+			var eventSource = document.createElement('div');
+			eventSource.classList.add('eventSource');
+			eventSource.textContent = formatEventSource(event);
+			eventInfo.append(eventSource);
+		}
+		eventInfo.append(document.createElement('br'), document.createTextNode(event.hostName));
+		const eventContent = document.createElement('div');
+		eventContent.classList.add('eventContent');
+		try {
+			appendVariable(eventContent, JSON.parse(event.raw), 0);
+		}
+		catch (exception) {
+			eventContent.textContent = event.raw;
+		}
+		eventInfo.append(eventContent);
+		eventTracked.append(eventInfo);
+		trackMessages.append(eventTracked);
+
+		eventInfo.onclick = function() {
+			if (!shouldToggleEventDetails(window.getSelection().toString())) return;
+			eventContent.style.display = eventContent.style.display == 'block' ? 'none' : 'block';
+		};
+		copyEvent.onclick = (clickEvent) => {
+			navigator.clipboard.writeText(event.raw);
+			clickEvent.stopPropagation();
+		};
+	}
 }
 
 function queryForUpdate() {
 	chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
 		var currentTab = tabs[0];
+		if (!currentTab) {
+			renderEmptyState();
+			return;
+		}
 		connection.postMessage({ type: 'update', tabId: currentTab.id, showAllTabs });
 	});
 }
@@ -41,6 +126,10 @@ function queryForUpdate() {
 function clearTabLog() {
 	chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
 		var currentTab = tabs[0];
+		if (!currentTab) {
+			renderEmptyState();
+			return;
+		}
 		connection.postMessage({ type: 'clear', tabId: currentTab.id, showAllTabs });
 	});
 }
@@ -51,46 +140,10 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
 
 chrome.tabs.onActivated.addListener(() => queryForUpdate());
 
-connection.onMessage.addListener((msg) => {
+function handlePortMessage(msg) {
 	if (msg.type != 'update') return;
-
-	var prettyEventsString = '';
-	if (msg.events.length > 0) {
-		for (var i = 0; i < msg.events.length; i++) {
-			var event = msg.events[i];
-			var jsonObject = JSON.parse(event.raw);
-			var eventString = '';
-
-			eventString += '<div class="eventTracked eventType_' + event.type + '">';
-			eventString += '<div class="eventInfo" id="eventInfo_' + i + '"><span class="eventName">';
-			eventString += '<div class="copyEvent" id="copy_' + i + '"><a title="Copy json to clipboard">' + copyJsonSVG + '</a></div>';
-			eventString += displayEventName(event.eventName) + '</span> - ' + event.trackedTime;
-			if (showAllTabs) eventString += '<div class="eventSource">' + formatEventSource(event) + '</div>';
-			eventString += '<br />' + event.hostName;
-			eventString += '<div class="eventContent" id="eventContent_' + i + '">';
-			eventString += printVariable(jsonObject, 0);
-			eventString += '</div></div></div>';
-			prettyEventsString += eventString;
-		}
-	}
-	else {
-		prettyEventsString = 'No events tracked in this tab yet.';
-	}
-	document.getElementById('trackMessages').innerHTML = prettyEventsString;
-
-	for (var i = 0; i < msg.events.length; i++) {
-		const number = i;
-		document.getElementById('eventInfo_' + number).onclick = function() {
-			if (!shouldToggleEventDetails(window.getSelection().toString())) return;
-			var eventContent = document.getElementById('eventContent_' + number);
-			eventContent.style.display = eventContent.style.display == 'block' ? 'none' : 'block';
-		};
-		document.getElementById('copy_' + number).onclick = (event) => {
-			navigator.clipboard.writeText(msg.events[number].raw);
-			event.stopPropagation();
-		};
-	}
-});
+	renderEvents(msg.events);
+}
 
 function filterEvents(keyPressedEvent) {
 	var filter = new RegExp(keyPressedEvent.target.value, 'gi');

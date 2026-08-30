@@ -6,9 +6,12 @@ const vm = require('node:vm');
 
 const backgroundSource = fs.readFileSync(path.join(__dirname, '..', 'background.js'), 'utf8');
 
-function loadBackground({ sendMessage, console = { log() {} } } = {}) {
+function loadBackground({ sendMessage, console = { log() {} }, getTab = () => {} } = {}) {
+	const onBeforeRequestListeners = [];
+	const onHeadersReceivedListeners = [];
 	const sandbox = {
 		URL,
+		TextDecoder,
 		console,
 		attachTabSource: (event) => event,
 		chrome: {
@@ -18,20 +21,23 @@ function loadBackground({ sendMessage, console = { log() {} } } = {}) {
 			},
 			tabs: {
 				query() {},
-				get() {}
+				get: getTab
 			},
 			runtime: {
 				sendMessage,
+				lastError: undefined,
 				onConnect: { addListener() {} }
 			},
 			webRequest: {
-				onBeforeRequest: { addListener() {} },
-				onHeadersReceived: { addListener() {} }
+				onBeforeRequest: { addListener: (listener) => onBeforeRequestListeners.push(listener) },
+				onHeadersReceived: { addListener: (listener) => onHeadersReceivedListeners.push(listener) }
 			}
 		}
 	};
 
 	vm.runInNewContext(backgroundSource, sandbox, { filename: 'background.js' });
+	sandbox.onBeforeRequest = onBeforeRequestListeners[0];
+	sandbox.onHeadersReceived = onHeadersReceivedListeners[0];
 	return sandbox;
 }
 
@@ -69,4 +75,46 @@ test('treats missing or invalid tab URLs as a nonmatching own-server response wi
 
 	assert.equal(callbackCalls, 0);
 	assert.deepEqual(logs, []);
+});
+
+test('keeps events newest-first by capture sequence when originating-tab lookups resolve out of order', () => {
+	const tabLookups = new Map();
+	const background = loadBackground({
+		sendMessage: () => ({ catch() {} }),
+		getTab: (tabId, callback) => tabLookups.set(tabId, callback)
+	});
+	const requestBody = (event) => ({ raw: [{ bytes: new TextEncoder().encode(JSON.stringify({ event })).buffer }] });
+
+	background.onBeforeRequest({ tabId: 1, url: 'https://api.segment.io/v1/t', requestBody: requestBody('first') });
+	background.onBeforeRequest({ tabId: 2, url: 'https://api.segment.io/v1/t', requestBody: requestBody('second') });
+	// The newer request resolves first; the original capture order must still win.
+	tabLookups.get(2)({ id: 2, title: 'Second', url: 'https://second.example' });
+	tabLookups.get(1)({ id: 1, title: 'First', url: 'https://first.example' });
+
+	assert.deepEqual(
+		Array.from(background.trackedEvents, (event) => event.eventName),
+		['second', 'first']
+	);
+});
+
+test('keeps server-header events newest-first when originating-tab lookups resolve out of order', () => {
+	const tabLookups = new Map();
+	const background = loadBackground({
+		sendMessage: () => ({ catch() {} }),
+		getTab: (tabId, callback) => tabLookups.set(tabId, callback)
+	});
+	const responseHeaders = (event) => [{
+		name: 'x-tracked-events',
+		value: JSON.stringify([{ type: 'track', event, timestamp: '2026-08-30T10:00:00.000Z' }])
+	}];
+
+	background.onHeadersReceived({ tabId: 3, url: 'https://first.example/events', responseHeaders: responseHeaders('first') });
+	background.onHeadersReceived({ tabId: 4, url: 'https://second.example/events', responseHeaders: responseHeaders('second') });
+	tabLookups.get(4)({ id: 4, title: 'Second', url: 'https://second.example/page' });
+	tabLookups.get(3)({ id: 3, title: 'First', url: 'https://first.example/page' });
+
+	assert.deepEqual(
+		Array.from(background.trackedEvents, (event) => event.eventName),
+		['second', 'first']
+	);
 });

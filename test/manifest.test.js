@@ -11,4 +11,5 @@ test('registers sidepanel.html as the action-driven native side panel', () => {
 	assert.equal(manifest.action.default_popup, undefined);
 	assert.equal(manifest.side_panel.default_path, 'sidepanel.html');
 	assert.ok(manifest.permissions.includes('sidePanel'));
+	assert.equal(manifest.minimum_chrome_version, '114');
 });

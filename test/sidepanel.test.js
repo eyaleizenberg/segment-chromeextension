@@ -6,17 +6,51 @@ const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 
-function createElement() {
-	return {
+function createElement(tagName = 'div') {
+	const classes = new Set();
+	const element = {
+		tagName: tagName.toUpperCase(),
 		checked: false,
 		hidden: false,
 		innerHTML: '',
 		style: {},
 		value: '',
+		children: [],
+		_textContent: '',
 		focus() {},
-		getElementsByClassName: () => [],
-		classList: { add() {}, remove() {} }
+		append(...nodes) {
+			for (const node of nodes) {
+				this.children.push(node);
+			}
+		},
+		replaceChildren(...nodes) {
+			this.children = [];
+			this._textContent = '';
+			this.append(...nodes);
+		},
+		getElementsByClassName(className) {
+			const matches = [];
+			const visit = (node) => {
+				if (node.classList && node.classList.contains(className)) matches.push(node);
+				if (node.children) node.children.forEach(visit);
+			};
+			this.children.forEach(visit);
+			return matches;
+		},
+		classList: {
+			add: (...names) => names.forEach((name) => classes.add(name)),
+			remove: (...names) => names.forEach((name) => classes.delete(name)),
+			contains: (name) => classes.has(name)
+		}
 	};
+	Object.defineProperty(element, 'textContent', {
+		get: () => element._textContent + element.children.map((child) => child.textContent).join(''),
+		set: (value) => {
+			element._textContent = String(value);
+			element.children = [];
+		}
+	});
+	return element;
 }
 
 function loadSidePanel(storageValues = {}, options = {}) {
@@ -28,19 +62,30 @@ function loadSidePanel(storageValues = {}, options = {}) {
 	const portMessages = [];
 	const storageSets = [];
 	const portListeners = [];
+	const ports = [];
 	const pendingStorageGets = [];
 	const tabActivationListeners = [];
 	const runtimeListeners = [];
 	const chrome = {
 		runtime: {
-			connect: () => ({
-				postMessage: (message) => portMessages.push(message),
-				onMessage: { addListener: (listener) => portListeners.push(listener) }
-			}),
+			connect: () => {
+				const port = {
+					messages: [],
+					disconnectListeners: [],
+					postMessage: (message) => {
+						port.messages.push(message);
+						portMessages.push(message);
+					},
+					onMessage: { addListener: (listener) => portListeners.push(listener) },
+					onDisconnect: { addListener: (listener) => port.disconnectListeners.push(listener) }
+				};
+				ports.push(port);
+				return port;
+			},
 			onMessage: { addListener: (listener) => runtimeListeners.push(listener) }
 		},
 		tabs: {
-			query: (_query, callback) => callback([{ id: 42 }]),
+			query: (_query, callback) => callback(options.tabs || [{ id: 42 }]),
 			onActivated: { addListener: (listener) => tabActivationListeners.push(listener) }
 		},
 		storage: {
@@ -65,7 +110,9 @@ function loadSidePanel(storageValues = {}, options = {}) {
 		chrome,
 		document: {
 			addEventListener: (type, listener) => { domListeners[type] = listener; },
-			getElementById: (id) => elements[id] || (elements[id] = createElement())
+			getElementById: (id) => elements[id] || (elements[id] = createElement()),
+			createElement,
+			createTextNode: (text) => ({ textContent: String(text) })
 		},
 		window: { getSelection: () => ({ toString: () => '' }) },
 		navigator: { clipboard: { writeText() {} } },
@@ -78,7 +125,7 @@ function loadSidePanel(storageValues = {}, options = {}) {
 	};
 	vm.runInNewContext(fs.readFileSync(path.join(root, 'sidepanel.js'), 'utf8'), context);
 	domListeners.DOMContentLoaded();
-	return { elements, portMessages, portListeners, runtimeListeners, storageSets, tabActivationListeners, pendingStorageGets };
+	return { elements, portMessages, portListeners, ports, runtimeListeners, storageSets, tabActivationListeners, pendingStorageGets };
 }
 
 test('loads the side-panel document with shared utilities before its controller', () => {
@@ -98,7 +145,7 @@ test('queries and clears the selected scope and labels only all-tabs events', ()
 		type: 'update',
 		events: [{ type: 'track', eventName: 'Viewed Home', trackedTime: '10:00', hostName: 'example.com', tabTitle: 'Dashboard', raw: '{"value":1}' }]
 	});
-	assert.match(panel.elements.trackMessages.innerHTML, /class="eventSource">Dashboard · source\.example/);
+	assert.equal(panel.elements.trackMessages.getElementsByClassName('eventSource')[0].textContent, 'Dashboard · source.example');
 
 	panel.elements.clearButton.onclick();
 	assert.deepEqual({ ...panel.portMessages.at(-1) }, { type: 'clear', tabId: 42, showAllTabs: true });
@@ -112,7 +159,7 @@ test('queries and clears the selected scope and labels only all-tabs events', ()
 		type: 'update',
 		events: [{ type: 'track', eventName: 'Viewed Home', trackedTime: '10:00', hostName: 'example.com', tabTitle: 'Dashboard', raw: '{"value":1}' }]
 	});
-	assert.doesNotMatch(panel.elements.trackMessages.innerHTML, /eventSource/);
+	assert.equal(panel.elements.trackMessages.getElementsByClassName('eventSource').length, 0);
 });
 
 test('uses the false default and refreshes when the active tab changes', () => {
@@ -138,7 +185,7 @@ test('applies a persisted snake-case preference before the first event render', 
 		type: 'update',
 		events: [{ type: 'track', eventName: 'Viewed Home', trackedTime: '10:00', hostName: 'example.com', raw: '{"value":1}' }]
 	});
-	assert.match(panel.elements.trackMessages.innerHTML, />viewed home</);
+	assert.match(panel.elements.trackMessages.textContent, /viewed home/);
 });
 
 test('uses a flex viewport layout that keeps the clear control below the scrollable event list', () => {
@@ -149,4 +196,44 @@ test('uses a flex viewport layout that keeps the clear control below the scrolla
 	assert.match(styles, /#contentDiv\s*\{[^}]*flex:\s*1 1 auto;[^}]*flex-direction:\s*column;[^}]*min-height:\s*0;/s);
 	assert.match(styles, /#trackMessages\s*\{[^}]*flex:\s*1 1 auto;[^}]*min-height:\s*0;[^}]*overflow:\s*auto;/s);
 	assert.match(styles, /\.buttonDiv\s*\{[^}]*flex:\s*0 0 auto;/s);
+});
+
+test('reconnects the side-panel port and re-queries after a service-worker disconnect', () => {
+	const panel = loadSidePanel();
+
+	assert.equal(panel.ports.length, 1);
+	panel.ports[0].disconnectListeners[0]();
+
+	assert.equal(panel.ports.length, 2);
+	assert.deepEqual({ ...panel.ports[1].messages[0] }, { type: 'update', tabId: 42, showAllTabs: false });
+});
+
+test('renders event fields, payload, and source labels as text instead of injecting untrusted HTML', () => {
+	const panel = loadSidePanel({ show_all_tabs: true });
+	const untrusted = '<img src=x onerror=alert(1)>';
+
+	panel.portListeners[0]({
+		type: 'update',
+		events: [{
+			type: 'track',
+			eventName: untrusted,
+			trackedTime: untrusted,
+			hostName: untrusted,
+			tabTitle: untrusted,
+			raw: JSON.stringify({ [untrusted]: untrusted })
+		}]
+	});
+
+	assert.equal(panel.elements.trackMessages.innerHTML, '');
+	assert.match(panel.elements.trackMessages.textContent, /<img src=x onerror=alert\(1\)>/);
+	assert.equal(panel.elements.trackMessages.getElementsByClassName('eventTracked').length, 1);
+});
+
+test('renders the existing empty state without posting query or clear messages when no active tab exists', () => {
+	const panel = loadSidePanel({}, { tabs: [] });
+
+	assert.equal(panel.portMessages.length, 0);
+	assert.equal(panel.elements.trackMessages.textContent, 'No events tracked in this tab yet.');
+	panel.elements.clearButton.onclick();
+	assert.equal(panel.portMessages.length, 0);
 });
