@@ -215,6 +215,15 @@ test('truncates long event names while preserving the event time and copy contro
 	assert.match(styles, /\.eventTime\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/s);
 });
 
+test('renders the event host as metadata in the signal feed', () => {
+	const panel = loadSidePanel();
+	panel.portListeners[0]({
+		type: 'update',
+		events: [{ type: 'track', eventName: 'Viewed Home', trackedTime: '10:00', hostName: 'example.com', raw: '{}' }]
+	});
+	assert.equal(panel.elements.trackMessages.getElementsByClassName('eventHost')[0].textContent, 'example.com');
+});
+
 test('reconnects the side-panel port and re-queries after a service-worker disconnect', () => {
 	const panel = loadSidePanel();
 

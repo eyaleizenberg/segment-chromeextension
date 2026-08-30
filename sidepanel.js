@@ -99,7 +99,10 @@ function renderEvents(events) {
 			eventSource.textContent = formatEventSource(event);
 			eventInfo.append(eventSource);
 		}
-		eventInfo.append(document.createElement('br'), document.createTextNode(event.hostName));
+		var eventHost = document.createElement('div');
+		eventHost.classList.add('eventHost');
+		eventHost.textContent = event.hostName;
+		eventInfo.append(eventHost);
 		const eventContent = document.createElement('div');
 		eventContent.classList.add('eventContent');
 		try {
