@@ -18,6 +18,7 @@ function createElement(tagName = 'div') {
 		children: [],
 		_textContent: '',
 		focus() {},
+		setAttribute() {},
 		append(...nodes) {
 			for (const node of nodes) {
 				this.children.push(node);
@@ -63,7 +64,7 @@ function createElement(tagName = 'div') {
 function loadSidePanel(storageValues = {}, options = {}) {
 	const elements = Object.fromEntries([
 		'clearButton', 'filterInput', 'configureButton', 'contentDiv', 'configurationDiv',
-		'clearAllButton', 'snakeCaseEventNames', 'showAllTabs', 'darkMode', 'apiDomain', 'trackMessages', 'copyToast'
+		'clearAllButton', 'snakeCaseEventNames', 'showAllTabs', 'darkMode', 'apiDomain', 'trackMessages'
 	].map((id) => [id, createElement()]));
 	const domListeners = {};
 	const portMessages = [];
@@ -144,7 +145,6 @@ test('loads the side-panel document with shared utilities before its controller'
 	assert.match(document, /<input[^>]*type="checkbox"[^>]*id="showAllTabs"/);
 	assert.match(document, /<input[^>]*type="checkbox"[^>]*id="darkMode"/);
 	assert.match(document, /<input[^>]*id="clearAllButton"[^>]*value="Clear log from all tabs"/);
-	assert.match(document, /<div[^>]*id="copyToast"[^>]*role="status"/);
 	assert.ok(document.indexOf('event-store.js') < document.indexOf('event-name-formatter.js'));
 	assert.ok(document.indexOf('event-name-formatter.js') < document.indexOf('event-click-handler.js'));
 	assert.ok(document.indexOf('event-click-handler.js') < document.indexOf('sidepanel.js'));
@@ -215,7 +215,7 @@ test('truncates long event names while preserving the event time and copy contro
 	const styles = fs.readFileSync(path.join(root, 'sidepanel.css'), 'utf8');
 	assert.match(styles, /\.eventSummary\s*\{[^}]*display:\s*flex;[^}]*min-width:\s*0;/s);
 	assert.match(styles, /\.eventName\s*\{[^}]*flex:\s*1 1 auto;[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
-	assert.match(styles, /\.eventTime\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/s);
+	assert.match(styles, /\.eventTimeGroup\s*\{[^}]*position:\s*relative;[^}]*flex:\s*0 0 auto;/s);
 });
 
 test('renders the event host as metadata in the signal feed', () => {
@@ -244,7 +244,8 @@ test('shows a copied toast after the clipboard write succeeds', async () => {
 	});
 	panel.elements.trackMessages.getElementsByClassName('copyEvent')[0].onclick({ stopPropagation() {} });
 	await Promise.resolve();
-	assert.equal(panel.elements.copyToast.hidden, false);
+	const toast = panel.elements.trackMessages.getElementsByClassName('copyToast')[0];
+	assert.equal(toast.hidden, false);
 });
 
 test('reconnects the side-panel port and re-queries after a service-worker disconnect', () => {

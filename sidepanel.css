@@ -196,10 +196,14 @@ h1 {
 }
 
 .eventTime {
-	flex: 0 0 auto;
 	color: #77827d;
 	font-size: 12px;
 	white-space: nowrap;
+}
+
+.eventTimeGroup {
+	position: relative;
+	flex: 0 0 auto;
 }
 
 .eventSource,
@@ -265,10 +269,10 @@ h1 {
 }
 
 .copyToast {
-	position: fixed;
-	bottom: 18px;
-	left: 50%;
-	transform: translateX(-50%);
+	position: absolute;
+	top: calc(100% + 6px);
+	right: 0;
+	z-index: 1;
 	padding: 7px 11px;
 	border-radius: 7px;
 	background: #19211f;
@@ -277,6 +281,7 @@ h1 {
 	font-size: 12px;
 	font-weight: 600;
 	pointer-events: none;
+	white-space: nowrap;
 }
 
 .string { color: #287c42; }

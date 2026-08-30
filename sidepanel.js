@@ -26,8 +26,7 @@ function displayEventName(eventName) {
 	return displayEventNamesInSnakeCase ? toSnakeCase(eventName) : eventName;
 }
 
-function showCopyToast() {
-	var copyToast = document.getElementById('copyToast');
+function showCopyToast(copyToast) {
 	copyToast.hidden = false;
 	clearTimeout(copyToastTimeout);
 	copyToastTimeout = setTimeout(() => {
@@ -95,13 +94,22 @@ function renderEvents(events) {
 		var eventTime = document.createElement('span');
 		eventTime.classList.add('eventTime');
 		eventTime.textContent = event.trackedTime;
+		var eventTimeGroup = document.createElement('div');
+		eventTimeGroup.classList.add('eventTimeGroup');
+		var copyToast = document.createElement('div');
+		copyToast.classList.add('copyToast');
+		copyToast.setAttribute('role', 'status');
+		copyToast.setAttribute('aria-live', 'polite');
+		copyToast.textContent = 'Copied';
+		copyToast.hidden = true;
+		eventTimeGroup.append(eventTime, copyToast);
 		var copyEvent = document.createElement('div');
 		copyEvent.classList.add('copyEvent');
 		var copyLink = document.createElement('a');
 		copyLink.title = 'Copy json to clipboard';
 		copyLink.innerHTML = copyJsonSVG;
 		copyEvent.append(copyLink);
-		eventSummary.append(eventName, eventTime, copyEvent);
+		eventSummary.append(eventName, eventTimeGroup, copyEvent);
 		eventInfo.append(eventSummary);
 		if (showAllTabs) {
 			var eventSource = document.createElement('div');
@@ -130,7 +138,7 @@ function renderEvents(events) {
 			eventContent.style.display = eventContent.style.display == 'block' ? 'none' : 'block';
 		};
 		copyEvent.onclick = (clickEvent) => {
-			Promise.resolve(navigator.clipboard.writeText(event.raw)).then(showCopyToast).catch(() => {});
+			Promise.resolve(navigator.clipboard.writeText(event.raw)).then(() => showCopyToast(copyToast)).catch(() => {});
 			clickEvent.stopPropagation();
 		};
 	}
