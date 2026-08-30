@@ -63,7 +63,7 @@ function createElement(tagName = 'div') {
 function loadSidePanel(storageValues = {}, options = {}) {
 	const elements = Object.fromEntries([
 		'clearButton', 'filterInput', 'configureButton', 'contentDiv', 'configurationDiv',
-		'clearAllButton', 'snakeCaseEventNames', 'showAllTabs', 'darkMode', 'apiDomain', 'trackMessages'
+		'clearAllButton', 'snakeCaseEventNames', 'showAllTabs', 'darkMode', 'apiDomain', 'trackMessages', 'copyToast'
 	].map((id) => [id, createElement()]));
 	const domListeners = {};
 	const portMessages = [];
@@ -129,7 +129,9 @@ function loadSidePanel(storageValues = {}, options = {}) {
 		shouldToggleEventDetails: () => true,
 		JSON,
 		RegExp,
-		console
+		console,
+		clearTimeout() {},
+		setTimeout() { return 1; }
 	};
 	vm.runInNewContext(fs.readFileSync(path.join(root, 'sidepanel.js'), 'utf8'), context);
 	domListeners.DOMContentLoaded();
@@ -142,6 +144,7 @@ test('loads the side-panel document with shared utilities before its controller'
 	assert.match(document, /<input[^>]*type="checkbox"[^>]*id="showAllTabs"/);
 	assert.match(document, /<input[^>]*type="checkbox"[^>]*id="darkMode"/);
 	assert.match(document, /<input[^>]*id="clearAllButton"[^>]*value="Clear log from all tabs"/);
+	assert.match(document, /<div[^>]*id="copyToast"[^>]*role="status"/);
 	assert.ok(document.indexOf('event-store.js') < document.indexOf('event-name-formatter.js'));
 	assert.ok(document.indexOf('event-name-formatter.js') < document.indexOf('event-click-handler.js'));
 	assert.ok(document.indexOf('event-click-handler.js') < document.indexOf('sidepanel.js'));
@@ -222,6 +225,26 @@ test('renders the event host as metadata in the signal feed', () => {
 		events: [{ type: 'track', eventName: 'Viewed Home', trackedTime: '10:00', hostName: 'example.com', raw: '{}' }]
 	});
 	assert.equal(panel.elements.trackMessages.getElementsByClassName('eventHost')[0].textContent, 'example.com');
+});
+
+test('shows timestamps without a separator before the time', () => {
+	const panel = loadSidePanel();
+	panel.portListeners[0]({
+		type: 'update',
+		events: [{ type: 'track', eventName: 'Viewed Home', trackedTime: '13:29:28', hostName: 'example.com', raw: '{}' }]
+	});
+	assert.equal(panel.elements.trackMessages.getElementsByClassName('eventTime')[0].textContent, '13:29:28');
+});
+
+test('shows a copied toast after the clipboard write succeeds', async () => {
+	const panel = loadSidePanel();
+	panel.portListeners[0]({
+		type: 'update',
+		events: [{ type: 'track', eventName: 'Viewed Home', trackedTime: '13:29:28', hostName: 'example.com', raw: '{}' }]
+	});
+	panel.elements.trackMessages.getElementsByClassName('copyEvent')[0].onclick({ stopPropagation() {} });
+	await Promise.resolve();
+	assert.equal(panel.elements.copyToast.hidden, false);
 });
 
 test('reconnects the side-panel port and re-queries after a service-worker disconnect', () => {

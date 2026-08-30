@@ -264,6 +264,21 @@ h1 {
 	height: 16px;
 }
 
+.copyToast {
+	position: fixed;
+	bottom: 18px;
+	left: 50%;
+	transform: translateX(-50%);
+	padding: 7px 11px;
+	border-radius: 7px;
+	background: #19211f;
+	color: #ffffff;
+	box-shadow: 0 6px 18px rgba(25, 33, 31, 0.2);
+	font-size: 12px;
+	font-weight: 600;
+	pointer-events: none;
+}
+
 .string { color: #287c42; }
 .number { color: #1c67a4; }
 .boolean { color: #7052a0; }
@@ -356,6 +371,11 @@ body.darkMode .eventContent {
 }
 
 body.darkMode .key { color: #edf2ef; }
+
+body.darkMode .copyToast {
+	background: #e3ebe6;
+	color: #19211f;
+}
 
 body.darkMode #clearButton {
 	border-color: #48544f;

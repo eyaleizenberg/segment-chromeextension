@@ -21,7 +21,7 @@ function zeroPad(i) {
 }
 
 function formatDateToTime(date) {
-	return date.toLocaleTimeString()
+	return date.toLocaleTimeString('en-GB', { hour12: false })
 }
 
 function withOpenTab(callback) {

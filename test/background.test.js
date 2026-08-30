@@ -80,6 +80,11 @@ test('treats missing or invalid tab URLs as a nonmatching own-server response wi
 	assert.deepEqual(logs, []);
 });
 
+test('formats timestamps in 24-hour time without an AM or PM suffix', () => {
+	const background = loadBackground();
+	assert.equal(background.formatDateToTime(new Date('2026-08-30T13:29:28')), '13:29:28');
+});
+
 test('keeps events newest-first by capture sequence when originating-tab lookups resolve out of order', () => {
 	const tabLookups = new Map();
 	const background = loadBackground({
