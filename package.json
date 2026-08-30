@@ -6,7 +6,7 @@
     "test": "node --test"
   },
   "repository": "https://github.com/MartinMouritzen/segment-chromeextension.git",
-  "author": "Martin Mouritzen <martin@martinmouritzen.dk>",
+  "author": "Eyal Eizenberg",
   "license": "MIT",
   "dependencies": {
     "archiver": "^7.0.1"
