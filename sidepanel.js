@@ -77,16 +77,22 @@ function renderEvents(events) {
 		}
 		var eventInfo = document.createElement('div');
 		eventInfo.classList.add('eventInfo');
+		var eventSummary = document.createElement('div');
+		eventSummary.classList.add('eventSummary');
 		var eventName = document.createElement('span');
 		eventName.classList.add('eventName');
+		eventName.textContent = displayEventName(event.eventName);
+		var eventTime = document.createElement('span');
+		eventTime.classList.add('eventTime');
+		eventTime.textContent = ' - ' + event.trackedTime;
 		var copyEvent = document.createElement('div');
 		copyEvent.classList.add('copyEvent');
 		var copyLink = document.createElement('a');
 		copyLink.title = 'Copy json to clipboard';
 		copyLink.innerHTML = copyJsonSVG;
 		copyEvent.append(copyLink);
-		eventName.append(copyEvent, document.createTextNode(displayEventName(event.eventName)));
-		eventInfo.append(eventName, document.createTextNode(' - ' + event.trackedTime));
+		eventSummary.append(eventName, eventTime, copyEvent);
+		eventInfo.append(eventSummary);
 		if (showAllTabs) {
 			var eventSource = document.createElement('div');
 			eventSource.classList.add('eventSource');

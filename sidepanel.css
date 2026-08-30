@@ -138,12 +138,30 @@ h1 {
 }
 
 .eventInfo {
+	min-width: 0;
 	font-size: 16px;
 	cursor: pointer;
 }
 
+.eventSummary {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	gap: 6px;
+}
+
 .eventName {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	color: #FFFFFF;
+}
+
+.eventTime {
+	flex: 0 0 auto;
+	white-space: nowrap;
 }
 
 .eventSource {
@@ -181,7 +199,7 @@ h1 {
 }
 
 .copyEvent {
-	float: right;
+	flex: 0 0 auto;
 }
 .copyEvent svg {
 	width: 16px;

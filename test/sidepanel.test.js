@@ -208,6 +208,13 @@ test('uses a flex viewport layout that keeps the clear control below the scrolla
 	assert.match(styles, /\.buttonDiv\s*\{[^}]*flex:\s*0 0 auto;/s);
 });
 
+test('truncates long event names while preserving the event time and copy control', () => {
+	const styles = fs.readFileSync(path.join(root, 'sidepanel.css'), 'utf8');
+	assert.match(styles, /\.eventSummary\s*\{[^}]*display:\s*flex;[^}]*min-width:\s*0;/s);
+	assert.match(styles, /\.eventName\s*\{[^}]*flex:\s*1 1 auto;[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
+	assert.match(styles, /\.eventTime\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/s);
+});
+
 test('reconnects the side-panel port and re-queries after a service-worker disconnect', () => {
 	const panel = loadSidePanel();
 
