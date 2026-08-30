@@ -229,6 +229,23 @@ test('renders the event host as metadata in the signal feed', () => {
 	assert.equal(panel.elements.trackMessages.getElementsByClassName('eventHost')[0].textContent, 'example.com');
 });
 
+test('filters events by text in their payload', () => {
+	const panel = loadSidePanel();
+	panel.portListeners[0]({
+		type: 'update',
+		events: [
+			{ type: 'track', eventName: 'Viewed Home', trackedTime: '10:00', hostName: 'example.com', raw: '{"accountId":"account-123"}' },
+			{ type: 'track', eventName: 'Signed Out', trackedTime: '10:01', hostName: 'example.com', raw: '{"accountId":"account-456"}' }
+		]
+	});
+
+	panel.elements.filterInput.onkeyup({ target: { value: 'account-123' } });
+
+	const eventCards = panel.elements.trackMessages.getElementsByClassName('eventTracked');
+	assert.equal(eventCards[0].classList.contains('hidden'), false);
+	assert.equal(eventCards[1].classList.contains('hidden'), true);
+});
+
 test('shows timestamps without a separator before the time', () => {
 	const panel = loadSidePanel();
 	panel.portListeners[0]({

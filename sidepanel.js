@@ -200,11 +200,10 @@ function handlePortMessage(msg) {
 }
 
 function filterEvents(keyPressedEvent) {
-	var filter = new RegExp(keyPressedEvent.target.value, 'gi');
+	var filter = keyPressedEvent.target.value.toLowerCase();
 	var eventElements = document.getElementById('trackMessages').getElementsByClassName('eventTracked');
 	for (eventElement of eventElements) {
-		var eventName = eventElement.getElementsByClassName('eventName')[0].textContent;
-		if (eventName.match(filter)) eventElement.classList.remove('hidden');
+		if (eventElement.textContent.toLowerCase().includes(filter)) eventElement.classList.remove('hidden');
 		else eventElement.classList.add('hidden');
 	}
 }
