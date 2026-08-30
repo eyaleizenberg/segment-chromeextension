@@ -34,6 +34,24 @@ function showCopyToast(copyToast) {
 	}, 1500);
 }
 
+function getSelectedEventCard(selection) {
+	var element = selection.anchorNode;
+	while (element) {
+		if (element.classList && element.classList.contains('eventTracked')) return element;
+		element = element.parentElement;
+	}
+}
+
+function copySelectedCardText() {
+	var selection = window.getSelection();
+	var selectedText = selection.toString().trim();
+	var eventCard = getSelectedEventCard(selection);
+	if (!selectedText || !eventCard) return;
+
+	var copyToast = eventCard.getElementsByClassName('copyToast')[0];
+	Promise.resolve(navigator.clipboard.writeText(selectedText)).then(() => showCopyToast(copyToast)).catch(() => {});
+}
+
 function appendVariable(container, jsonObject, level) {
 	for (var key in jsonObject) {
 		if (jsonObject.hasOwnProperty(key)) {
@@ -133,7 +151,7 @@ function renderEvents(events) {
 		eventTracked.append(eventInfo);
 		trackMessages.append(eventTracked);
 
-		eventInfo.onclick = function() {
+		eventSummary.onclick = function() {
 			if (!shouldToggleEventDetails(window.getSelection().toString())) return;
 			eventContent.style.display = eventContent.style.display == 'block' ? 'none' : 'block';
 		};
@@ -277,3 +295,5 @@ document.addEventListener('DOMContentLoaded', function() {
 	handleShowAllTabsUpdates();
 	handleDarkModeUpdates();
 });
+
+document.addEventListener('mouseup', copySelectedCardText);

@@ -21,6 +21,7 @@ function createElement(tagName = 'div') {
 		setAttribute() {},
 		append(...nodes) {
 			for (const node of nodes) {
+				node.parentElement = element;
 				this.children.push(node);
 			}
 		},
@@ -70,6 +71,7 @@ function loadSidePanel(storageValues = {}, options = {}) {
 	const portMessages = [];
 	const storageSets = [];
 	const portListeners = [];
+	const copiedTexts = [];
 	const ports = [];
 	const pendingStorageGets = [];
 	const tabActivationListeners = [];
@@ -123,8 +125,8 @@ function loadSidePanel(storageValues = {}, options = {}) {
 			createTextNode: (text) => ({ textContent: String(text) }),
 			body: createElement('body')
 		},
-		window: { getSelection: () => ({ toString: () => '' }) },
-		navigator: { clipboard: { writeText() {} } },
+		window: { getSelection: () => options.selection || ({ toString: () => '' }) },
+		navigator: { clipboard: { writeText: (text) => { copiedTexts.push(text); } } },
 		formatEventSource: (event) => `${event.tabTitle} · source.example`,
 		toSnakeCase: (eventName) => eventName.toLowerCase(),
 		shouldToggleEventDetails: () => true,
@@ -136,7 +138,7 @@ function loadSidePanel(storageValues = {}, options = {}) {
 	};
 	vm.runInNewContext(fs.readFileSync(path.join(root, 'sidepanel.js'), 'utf8'), context);
 	domListeners.DOMContentLoaded();
-	return { elements, body: context.document.body, portMessages, portListeners, ports, runtimeListeners, storageSets, tabActivationListeners, pendingStorageGets };
+	return { elements, body: context.document.body, portMessages, portListeners, ports, runtimeListeners, storageSets, tabActivationListeners, pendingStorageGets, copiedTexts, domListeners };
 }
 
 test('loads the side-panel document with shared utilities before its controller', () => {
@@ -246,6 +248,34 @@ test('shows a copied toast after the clipboard write succeeds', async () => {
 	await Promise.resolve();
 	const toast = panel.elements.trackMessages.getElementsByClassName('copyToast')[0];
 	assert.equal(toast.hidden, false);
+});
+
+test('only toggles event details from a header click', () => {
+	const panel = loadSidePanel();
+	panel.portListeners[0]({
+		type: 'update',
+		events: [{ type: 'track', eventName: 'Viewed Home', trackedTime: '13:29:28', hostName: 'example.com', raw: '{}' }]
+	});
+	const eventCard = panel.elements.trackMessages.getElementsByClassName('eventTracked')[0];
+	const header = panel.elements.trackMessages.getElementsByClassName('eventSummary')[0];
+	const eventContent = panel.elements.trackMessages.getElementsByClassName('eventContent')[0];
+	assert.equal(eventCard.getElementsByClassName('eventInfo')[0].onclick, undefined);
+	header.onclick();
+	assert.equal(eventContent.style.display, 'block');
+});
+
+test('copies text selected inside an event card automatically', async () => {
+	const selection = { toString: () => 'https://example.com/path', anchorNode: undefined };
+	const panel = loadSidePanel({}, { selection });
+	panel.portListeners[0]({
+		type: 'update',
+		events: [{ type: 'track', eventName: 'Viewed Home', trackedTime: '13:29:28', hostName: 'example.com', raw: '{}' }]
+	});
+	selection.anchorNode = panel.elements.trackMessages.getElementsByClassName('eventHost')[0];
+	panel.domListeners.mouseup();
+	await Promise.resolve();
+	assert.deepEqual(panel.copiedTexts, ['https://example.com/path']);
+	assert.equal(panel.elements.trackMessages.getElementsByClassName('copyToast')[0].hidden, false);
 });
 
 test('reconnects the side-panel port and re-queries after a service-worker disconnect', () => {
