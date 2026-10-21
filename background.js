@@ -134,6 +134,12 @@ function eventTypeToName(eventType) {
 			return 'Identify'
 		case 'pageLoad':
 			return 'Page Loaded'
+		case 'screen':
+			return 'Screen'
+		case 'group':
+			return 'Group'
+		case 'alias':
+			return 'Alias'
 		case 'batch':
 			return 'Batch'
 	}
@@ -184,6 +190,22 @@ const onBeforeRequestHandler = (details) => {
 		}
 
 		if (event.type) {
+			if (event.type === 'batch' && Array.isArray(rawEvent.batch)) {
+				var batchEvents = rawEvent.batch.map((batchEvent) => {
+					var type = batchEvent.type === 'page' ? 'pageLoad' : batchEvent.type;
+					return {
+						...event,
+						type,
+						eventName: batchEvent.event || eventTypeToName(type),
+						raw: JSON.stringify(batchEvent),
+						captureSequence: ++captureSequence
+					};
+				});
+				withRequestTab(details, (tab) => {
+					batchEvents.forEach((batchEvent) => addEvent(attachTabSource(batchEvent, tab)));
+				});
+				return;
+			}
 			event.eventName = eventTypeToName(event.type) || rawEvent.event
 			event.captureSequence = ++captureSequence;
 			withRequestTab(details, (tab) => {
